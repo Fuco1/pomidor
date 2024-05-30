@@ -61,6 +61,10 @@
   "If t ask for confirmation before ending a break and starting new a pomodoro."
   :type 'boolean :group 'pomidor)
 
+(defcustom pomidor-render-remaining-break-time t
+  "If t render the remaining break time in the UI."
+  :type 'boolean :group 'pomidor)
+
 ;;; Vars
 (defcustom pomidor-time-format "%H:%M:%S"
   "Time format for podomoro clock."
@@ -193,6 +197,11 @@ To disable sounds, set to nil."
 (defface pomidor-break-face
   '((t (:inherit 'font-lock-keyword-face)))
   "pomidor face for break"
+  :group 'pomidor)
+
+(defface pomidor-break-remaining-face
+  '((t (:inherit font-lock-builtin-face)))
+  "pomidor face for break remaining"
   :group 'pomidor)
 
 (defface pomidor-skip-face
@@ -374,7 +383,7 @@ TIME may be nil."
                                    pomidor-graph-char)
                       face))
 
-(defun pomidor--graph (work overwork break)
+(defun pomidor--graph (work overwork break break-seconds)
   "Format graph based on WORK, OVERWORK and BREAK time."
   (concat
    (pomidor--format-time-string work 'pomidor-work-face)
@@ -382,7 +391,11 @@ TIME may be nil."
      (when (> skip 0)
        (pomidor--format-time-string (seconds-to-time skip) 'pomidor-skip-face)))
    (and overwork (pomidor--format-time-string overwork 'pomidor-overwork-face))
-   (and break (pomidor--format-time-string break 'pomidor-break-face))))
+   (and break (pomidor--format-time-string break 'pomidor-break-face))
+   (when pomidor-render-remaining-break-time
+     (let ((skip-break (- break-seconds (if break (time-to-seconds break) 0))))
+       (when (> skip-break 0)
+         (pomidor--format-time-string (seconds-to-time skip-break) 'pomidor-break-remaining-face))))))
 
 (defun pomidor--play-sound-file (file)
   "Play FILE using `pomidor-play-sound-file' function if any."
@@ -428,6 +441,9 @@ TIME may be nil."
        as work = (pomidor--work-duration state)
        as overwork = (pomidor--overwork-duration state)
        as break = (pomidor--break-duration state)
+       as break-seconds = (if (= (1- i) pomidor-breaks-before-long)
+                               pomidor-long-break-seconds
+                             pomidor-break-seconds)
        as total = (pomidor--total-duration state)
 
        with sum-work = (seconds-to-time 0)
@@ -455,7 +471,7 @@ TIME may be nil."
                      (pomidor--format-time (pomidor--started state))
                      (pomidor--format-time (pomidor--ended state)))
              "\n     "
-             (pomidor--graph work overwork break)))
+             (pomidor--graph work overwork break break-seconds)))
        finally
        (insert "\n     "
                (make-string 79 ?-)
